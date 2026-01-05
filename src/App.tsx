@@ -432,14 +432,20 @@ export default function UIXViewer() {
         <div className="flex gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            disabled={loading}
+            className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             <Upload size={16} />
             上传 UIX 文件
           </button>
           <button
             onClick={() => imageInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            disabled={loading}
+            className={`flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             <Upload size={16} />
             上传截图
@@ -450,6 +456,7 @@ export default function UIXViewer() {
             accept=".xml,.uix"
             onChange={handleFileUpload}
             className="hidden"
+            disabled={loading}
           />
           <input
             ref={imageInputRef}
@@ -457,12 +464,57 @@ export default function UIXViewer() {
             accept="image/*"
             onChange={handleImageUpload}
             className="hidden"
+            disabled={loading}
           />
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Usage Tip */}
+        {!uiData && !loading && (
+          <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-10 bg-blue-50 border border-blue-200 rounded-lg shadow-lg p-6 max-w-2xl mx-4">
+            <h3 className="text-lg font-bold text-blue-900 mb-3 flex items-center gap-2">
+              <Layers size={20} />
+              使用说明
+            </h3>
+            <div className="space-y-3 text-sm text-gray-700">
+              <div>
+                <p className="font-semibold text-blue-800 mb-1">方法 1: 本地上传</p>
+                <p>点击上方按钮上传 UIX/XML 文件和截图</p>
+              </div>
+              <div>
+                <p className="font-semibold text-blue-800 mb-1">方法 2: URL 参数加载</p>
+                <p className="mb-2">在 URL 中添加参数来加载远程文件：</p>
+                <div className="bg-gray-800 text-green-400 p-3 rounded font-mono text-xs overflow-x-auto">
+                  ?uix=UIX文件地址&img=图片地址
+                </div>
+                <p className="mt-2 text-gray-600">示例：</p>
+                <div className="bg-gray-800 text-green-400 p-3 rounded font-mono text-xs overflow-x-auto break-all">
+                  ?uix=https://example.com/ui.xml&img=https://example.com/screen.png
+                </div>
+              </div>
+              <div className="border-t pt-3 mt-3">
+                <p className="font-semibold text-blue-800 mb-1">导出 UIX 和截图 (ADB)</p>
+                <div className="space-y-1 text-xs">
+                  <div className="bg-gray-800 text-green-400 p-2 rounded font-mono">
+                    adb shell screencap -p /sdcard/screen.png
+                  </div>
+                  <div className="bg-gray-800 text-green-400 p-2 rounded font-mono">
+                    adb shell uiautomator dump /sdcard/ui.xml
+                  </div>
+                  <div className="bg-gray-800 text-green-400 p-2 rounded font-mono">
+                    adb pull /sdcard/screen.png && adb pull /sdcard/ui.xml
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                💡 提示：远程文件需要支持 CORS 跨域访问
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Left Panel - Tree View */}
         <div className="w-1/3 bg-white border-r flex flex-col">
           <div className="p-3 border-b">
