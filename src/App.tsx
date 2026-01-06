@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Upload, ZoomIn, ZoomOut, RotateCcw, Search, Eye, Layers } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, ZoomIn, ZoomOut, RotateCcw, Search, Eye, Layers, History, X, Clock, ExternalLink } from 'lucide-react';
 
 export default function UIXViewer() {
   const [uiData, setUiData] = useState(null);
@@ -12,9 +12,23 @@ export default function UIXViewer() {
   const [allNodes, setAllNodes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState([]);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const screenshotRef = useRef(null);
+
+  // 从 localStorage 加载历史记录
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('uix_viewer_history');
+      if (saved) {
+        setHistory(JSON.parse(saved));
+      }
+    } catch (err) {
+      console.error('加载历史记录失败:', err);
+    }
+  }, []);
 
   // 从URL参数加载文件
   React.useEffect(() => {
@@ -26,6 +40,61 @@ export default function UIXViewer() {
       loadFromUrls(uixUrl, imgUrl);
     }
   }, []);
+
+  // 保存到历史记录
+  const saveToHistory = (uixUrl, imgUrl, fileName = '') => {
+    const newRecord = {
+      id: Date.now(),
+      uixUrl: uixUrl || '',
+      imgUrl: imgUrl || '',
+      fileName: fileName || (uixUrl ? uixUrl.split('/').pop() : '本地文件'),
+      timestamp: new Date().toISOString(),
+    };
+
+    const newHistory = [newRecord, ...history.filter(h => h.id !== newRecord.id)].slice(0, 20);
+    setHistory(newHistory);
+    
+    try {
+      localStorage.setItem('uix_viewer_history', JSON.stringify(newHistory));
+    } catch (err) {
+      console.error('保存历史记录失败:', err);
+    }
+  };
+
+  // 删除历史记录
+  const deleteHistoryItem = (id) => {
+    const newHistory = history.filter(h => h.id !== id);
+    setHistory(newHistory);
+    try {
+      localStorage.setItem('uix_viewer_history', JSON.stringify(newHistory));
+    } catch (err) {
+      console.error('删除历史记录失败:', err);
+    }
+  };
+
+  // 清空历史记录
+  const clearHistory = () => {
+    setHistory([]);
+    try {
+      localStorage.removeItem('uix_viewer_history');
+    } catch (err) {
+      console.error('清空历史记录失败:', err);
+    }
+  };
+
+  // 从历史记录加载
+  const loadFromHistory = (record) => {
+    setShowHistory(false);
+    if (record.uixUrl || record.imgUrl) {
+      // 更新 URL
+      const params = new URLSearchParams();
+      if (record.uixUrl) params.set('uix', record.uixUrl);
+      if (record.imgUrl) params.set('img', record.imgUrl);
+      window.history.pushState({}, '', '?' + params.toString());
+      
+      loadFromUrls(record.uixUrl, record.imgUrl);
+    }
+  };
 
   const loadFromUrls = async (uixUrl, imgUrl) => {
     setLoading(true);
@@ -51,6 +120,11 @@ export default function UIXViewer() {
         const reader = new FileReader();
         reader.onload = (e) => setScreenshot(e.target.result);
         reader.readAsDataURL(blob);
+      }
+
+      // 保存到历史记录
+      if (uixUrl || imgUrl) {
+        saveToHistory(uixUrl, imgUrl);
       }
     } catch (err) {
       setError(err.message);
@@ -146,8 +220,10 @@ export default function UIXViewer() {
   };
 
   const handleFileUpload = (e) => {
+    if (loading) return;
     const file = e.target.files[0];
     if (file) {
+      setLoading(true);
       const reader = new FileReader();
       reader.onload = (event) => {
         try {
@@ -156,20 +232,35 @@ export default function UIXViewer() {
           setAllNodes(allNodes);
           setExpandedNodes(new Set([root.id]));
           setSelectedNode(null);
+          setError(null);
         } catch (error) {
-          alert('解析文件失败: ' + error.message);
+          setError('解析文件失败: ' + error.message);
+        } finally {
+          setLoading(false);
         }
+      };
+      reader.onerror = () => {
+        setError('读取文件失败');
+        setLoading(false);
       };
       reader.readAsText(file);
     }
   };
 
   const handleImageUpload = (e) => {
+    if (loading) return;
     const file = e.target.files[0];
     if (file) {
+      setLoading(true);
       const reader = new FileReader();
       reader.onload = (event) => {
         setScreenshot(event.target.result);
+        setError(null);
+        setLoading(false);
+      };
+      reader.onerror = () => {
+        setError('读取图片失败');
+        setLoading(false);
       };
       reader.readAsDataURL(file);
     }
@@ -431,6 +522,16 @@ export default function UIXViewer() {
         
         <div className="flex gap-2">
           <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={`flex items-center gap-2 px-4 py-2 border rounded hover:bg-gray-50 ${
+              showHistory ? 'bg-gray-100 border-gray-400' : 'border-gray-300'
+            }`}
+            title="历史记录"
+          >
+            <History size={16} />
+            历史记录 {history.length > 0 && `(${history.length})`}
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             disabled={loading}
             className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 ${
@@ -470,7 +571,91 @@ export default function UIXViewer() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* History Panel */}
+        {showHistory && (
+          <div className="absolute top-0 right-0 w-96 h-full bg-white shadow-2xl z-50 flex flex-col border-l">
+            <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <History size={20} />
+                历史记录
+              </h3>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="p-1 hover:bg-gray-200 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {history.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <Clock size={48} className="mx-auto mb-2 text-gray-300" />
+                  <p>暂无历史记录</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-auto p-4">
+                  <div className="space-y-2">
+                    {history.map((record) => (
+                      <div
+                        key={record.id}
+                        className="border rounded p-3 hover:bg-gray-50 cursor-pointer group"
+                        onClick={() => loadFromHistory(record)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate mb-1">
+                              {record.fileName}
+                            </div>
+                            <div className="text-xs text-gray-500 space-y-1">
+                              {record.uixUrl && (
+                                <div className="flex items-center gap-1 truncate">
+                                  <span className="text-blue-600">UIX:</span>
+                                  <span className="truncate">{record.uixUrl}</span>
+                                </div>
+                              )}
+                              {record.imgUrl && (
+                                <div className="flex items-center gap-1 truncate">
+                                  <span className="text-green-600">IMG:</span>
+                                  <span className="truncate">{record.imgUrl}</span>
+                                </div>
+                              )}
+                              <div className="text-gray-400">
+                                {new Date(record.timestamp).toLocaleString('zh-CN')}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteHistoryItem(record.id);
+                            }}
+                            className="ml-2 p-1 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded text-red-600"
+                            title="删除"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t p-4">
+                  <button
+                    onClick={clearHistory}
+                    className="w-full px-4 py-2 bg-red-50 text-red-600 rounded hover:bg-red-100"
+                  >
+                    清空历史记录
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Usage Tip */}
         {!uiData && !loading && (
           <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-10 bg-blue-50 border border-blue-200 rounded-lg shadow-lg p-6 max-w-2xl mx-4">
