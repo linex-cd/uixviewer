@@ -108,7 +108,7 @@ export default function UIXViewer() {
       if (record.imgUrl) params.set('img', record.imgUrl);
       window.history.pushState({}, '', '?' + params.toString());
       
-      loadFromUrls(record.uixUrl, record.imgUrl, false); // 从历史加载不重复保存
+      loadFromUrls(record.uixUrl, record.imgUrl);
     }
   };
 
