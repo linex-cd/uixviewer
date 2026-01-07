@@ -37,7 +37,7 @@ export default function UIXViewer() {
     const imgUrl = params.get('img') || params.get('screenshot');
 
     if (uixUrl || imgUrl) {
-      loadFromUrls(uixUrl, imgUrl, false); // 初始加载不保存历史
+      loadFromUrls(uixUrl, imgUrl, true); // 从URL打开时保存到历史
     }
   }, []);
 
