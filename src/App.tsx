@@ -31,13 +31,13 @@ export default function UIXViewer() {
   }, []);
 
   // 从URL参数加载文件
-  React.useEffect(() => {
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const uixUrl = params.get('uix');
     const imgUrl = params.get('img') || params.get('screenshot');
 
     if (uixUrl || imgUrl) {
-      loadFromUrls(uixUrl, imgUrl);
+      loadFromUrls(uixUrl, imgUrl, false); // 初始加载不保存历史
     }
   }, []);
 
@@ -51,41 +51,45 @@ export default function UIXViewer() {
       timestamp: new Date().toISOString(),
     };
 
-    // 检查是否已存在相同的 URL 组合
-    const existingIndex = history.findIndex(
-      h => h.uixUrl === newRecord.uixUrl && h.imgUrl === newRecord.imgUrl
-    );
+    setHistory(prevHistory => {
+      // 检查是否已存在相同的 URL 组合
+      const existingIndex = prevHistory.findIndex(
+        h => h.uixUrl === newRecord.uixUrl && h.imgUrl === newRecord.imgUrl
+      );
 
-    let newHistory;
-    if (existingIndex !== -1) {
-      // 如果存在，将其移到最前面并更新时间
-      newHistory = [
-        { ...history[existingIndex], timestamp: newRecord.timestamp },
-        ...history.filter((_, idx) => idx !== existingIndex)
-      ];
-    } else {
-      // 如果不存在，添加新记录
-      newHistory = [newRecord, ...history].slice(0, 20);
-    }
+      let newHistory;
+      if (existingIndex !== -1) {
+        // 如果存在，将其移到最前面并更新时间
+        newHistory = [
+          { ...prevHistory[existingIndex], timestamp: newRecord.timestamp },
+          ...prevHistory.filter((_, idx) => idx !== existingIndex)
+        ];
+      } else {
+        // 如果不存在，添加新记录
+        newHistory = [newRecord, ...prevHistory].slice(0, 20);
+      }
 
-    setHistory(newHistory);
-    
-    try {
-      localStorage.setItem('uix_viewer_history', JSON.stringify(newHistory));
-    } catch (err) {
-      console.error('保存历史记录失败:', err);
-    }
+      try {
+        localStorage.setItem('uix_viewer_history', JSON.stringify(newHistory));
+      } catch (err) {
+        console.error('保存历史记录失败:', err);
+      }
+
+      return newHistory;
+    });
   };
 
   // 删除历史记录
   const deleteHistoryItem = (id) => {
-    const newHistory = history.filter(h => h.id !== id);
-    setHistory(newHistory);
-    try {
-      localStorage.setItem('uix_viewer_history', JSON.stringify(newHistory));
-    } catch (err) {
-      console.error('删除历史记录失败:', err);
-    }
+    setHistory(prevHistory => {
+      const newHistory = prevHistory.filter(h => h.id !== id);
+      try {
+        localStorage.setItem('uix_viewer_history', JSON.stringify(newHistory));
+      } catch (err) {
+        console.error('删除历史记录失败:', err);
+      }
+      return newHistory;
+    });
   };
 
   // 清空历史记录
@@ -106,9 +110,11 @@ export default function UIXViewer() {
       const params = new URLSearchParams();
       if (record.uixUrl) params.set('uix', record.uixUrl);
       if (record.imgUrl) params.set('img', record.imgUrl);
-      window.history.pushState({}, '', '?' + params.toString());
       
-      loadFromUrls(record.uixUrl, record.imgUrl);
+      const newUrl = params.toString() ? '?' + params.toString() : '/';
+      window.history.pushState({}, '', newUrl);
+      
+      loadFromUrls(record.uixUrl, record.imgUrl, false); // 从历史加载不重复保存
     }
   };
 
